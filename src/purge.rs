@@ -20,32 +20,42 @@ pub async fn run() {
                 "Running cronjob. Current time: {}",
                 Local::now().format("%Y-%m-%d %H:%M:%S")
             );
-            validate_directories().await;
+
+            let path = std::env::var("PATH").expect("unable to get value");
+
+            purge_heritics(path.as_str()).await;
         }
     }
 }
 
-async fn validate_directories() {
+async fn purge_heritics(path: &str) {
+    let purge_list: Vec<String> = validate_directories(path).await;
+    for heritic in purge_list {
+        let heritic_path = format!("{path}/{heritic}");
+        match fs::remove_dir(heritic_path) {
+            Ok(r) => println!("Directory removed"),
+            Err(_) => println!("Directory not removed")
+        }
+    }
+}
+
+async fn validate_directories(path: &str) -> Vec<String> {
     let emails: Vec<serde_json::Value> = parse_result().await;
     let mut purge_list: Vec<String> = Vec::new();
 
-    for e in emails.iter() {
-        let email_str: &str = e[0].as_str().expect("unable to convert to &str");
-        let path: String = format!("/home/josh/Documents/ipurge/{email_str}");
-
-        if !directory_exists(&path) {
-            purge_list.push(path);
+    for entry in fs::read_dir(path).expect("directory read failed") {
+        let name = match entry.expect("entry name failed").file_name().into_string() {
+            Ok(s) => s,
+            Err(_) => continue
+        };
+        
+        if !emails.iter().any(|e| e[0].as_str() == Some(&name)) {
+            purge_list.push(name);
         }
+
     }
 
-    println!("Directories to be purged");
-    for p in purge_list.iter() {
-        println!("{p}");
-    }
-}
-
-fn directory_exists(path: &str) -> bool {
-    fs::metadata(path).is_ok()
+    purge_list
 }
 
 async fn parse_result() -> Vec<Value> {
