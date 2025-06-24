@@ -1,3 +1,5 @@
+pub mod purge;
+
 fn main() {
-    println!("Hello, world!");
+    purge::run();
 }
