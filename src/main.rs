@@ -1,5 +1,6 @@
 pub mod purge;
 
-fn main() {
-    purge::run();
+#[tokio::main]
+async fn main() {
+    purge::run().await;
 }
