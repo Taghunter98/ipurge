@@ -50,7 +50,7 @@ pub async fn run(config: Config) {
             let until_next = next - now;
             thread::sleep(until_next.to_std().unwrap());
             log::info!(
-                "Startomg purge: {}",
+                "Starting purge: {}",
                 Local::now().format("%Y-%m-%d %H:%M:%S")
             );
 
@@ -74,7 +74,7 @@ async fn purge_heritics(config: &Config) {
     for heritic in purge_list {
         let heritic_path: String = format!("{}/{}", config.path.as_str(), heritic);
 
-        match fs::remove_dir(heritic_path) {
+        match fs::remove_dir_all(heritic_path) {
             Ok(_) => log::info!("REM: {}", heritic),
             Err(_) => log::error!("Failed to remove {}", heritic),
         }
