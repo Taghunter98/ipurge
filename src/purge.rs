@@ -2,39 +2,48 @@ use chrono::{Local, Utc};
 use cron::Schedule;
 use reqwest;
 use serde_json::{self, Value};
+use std::env::var;
 use std::fs;
 use std::str::FromStr;
 use std::thread;
 
-pub async fn run() {
-    let expression: &'static str = "0/5 * * * * *";
+pub async fn run(runtime: &'static str) {;
     let schedule: Schedule =
-        Schedule::from_str(expression).expect("Failed to parse CRON expression");
+        Schedule::from_str(runtime).expect("Failed to parse CRON expression");
 
     loop {
         let now: chrono::DateTime<Utc> = Utc::now();
         if let Some(next) = schedule.upcoming(Utc).take(1).next() {
             let until_next = next - now;
             thread::sleep(until_next.to_std().unwrap());
-            println!(
-                "Running cronjob. Current time: {}",
+            log::info!(
+                "Startomg purge: {}",
                 Local::now().format("%Y-%m-%d %H:%M:%S")
             );
 
-            let path = std::env::var("PATH").expect("unable to get value");
+            purge_heritics().await;
 
-            purge_heritics(path.as_str()).await;
+            log::info!(
+                "Completed purge: {}",
+                Local::now().format("%Y-%m-%d %H:%M:%S")
+            );
         }
     }
 }
 
-async fn purge_heritics(path: &str) {
-    let purge_list: Vec<String> = validate_directories(path).await;
+async fn purge_heritics() {
+    let path: String = var("DIR_PATH").expect("unable to get value");
+
+    println!("{:?}", path.as_str());
+
+    let purge_list: Vec<String> = validate_directories(&path.as_str()).await;
+
     for heritic in purge_list {
-        let heritic_path = format!("{path}/{heritic}");
+        let heritic_path: String = format!("{}/{}", path.as_str(), heritic);
+
         match fs::remove_dir(heritic_path) {
-            Ok(r) => println!("Directory removed"),
-            Err(_) => println!("Directory not removed")
+            Ok(_) => log::info!("REM: {}", heritic),
+            Err(_) => log::error!("Failed to remove {}", heritic),
         }
     }
 }
@@ -44,15 +53,14 @@ async fn validate_directories(path: &str) -> Vec<String> {
     let mut purge_list: Vec<String> = Vec::new();
 
     for entry in fs::read_dir(path).expect("directory read failed") {
-        let name = match entry.expect("entry name failed").file_name().into_string() {
+        let name: String = match entry.expect("entry name failed").file_name().into_string() {
             Ok(s) => s,
-            Err(_) => continue
+            Err(_) => continue,
         };
-        
+
         if !emails.iter().any(|e| e[0].as_str() == Some(&name)) {
             purge_list.push(name);
         }
-
     }
 
     purge_list
@@ -66,7 +74,6 @@ async fn parse_result() -> Vec<Value> {
 }
 
 async fn get_emails() -> Result<String, Box<dyn std::error::Error>> {
-    dotenv::dotenv().ok();
     let url: String = std::env::var("URL").expect("unable to get value");
 
     let response = reqwest::get(url).await?;
